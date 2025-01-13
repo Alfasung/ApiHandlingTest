@@ -8,11 +8,9 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.Map;
 
-// 사용자 요청을 처리하는 서비스 클래스
 @Service
 public class UserService {
 
-    // 의존성 주입을 통해 XML 처리, JSON 처리, 동적 데이터 소스 관리 핸들러 연결
     private final XmlToDbHandler xmlToDbHandler;
     private final JsonToFtpHandler jsonToFtpHandler;
     private final DynamicDataSourceManager dynamicDataSourceManager;
@@ -43,10 +41,13 @@ public class UserService {
             // 서버로 요청을 전송하고 응답 받기
             JSONObject responseJson = sendRequestToServer(requestJson);
 
+            // 필드 검증 로직 추가
+            validateResponseField(responseJson, "DB_CONN_INFO");
+            validateResponseField(responseJson, "XML_DATA");
+            validateResponseField(responseJson, "JSON_DATA");
+            validateResponseField(responseJson, "FTP_CONN_INFO");
+
             // DB 연결 정보 설정
-            if (!responseJson.has("DB_CONN_INFO")) {
-                throw new RuntimeException("DB_CONN_INFO not found in response!");
-            }
             JSONObject dbConnInfo = responseJson.getJSONObject("DB_CONN_INFO");
             dynamicDataSourceManager.configureDataSource(
                     dbConnInfo.getString("HOST"),
@@ -57,17 +58,11 @@ public class UserService {
             );
 
             // XML 데이터 처리 및 DB 삽입
-            if (!responseJson.has("XML_DATA")) {
-                throw new RuntimeException("XML_DATA not found in response!");
-            }
             JSONObject xmlDataJson = new JSONObject();
             xmlDataJson.put("XML_DATA", responseJson.getString("XML_DATA"));
-            xmlToDbHandler.handleXmlData(xmlDataJson, userInfo.get("name")); // 참여자명 전달
+            xmlToDbHandler.handleXmlData(xmlDataJson, userInfo.get("name"));
 
             // JSON 데이터 처리 및 FTP 업로드
-            if (!responseJson.has("JSON_DATA") || !responseJson.has("FTP_CONN_INFO")) {
-                throw new RuntimeException("JSON_DATA or FTP_CONN_INFO not found in response!");
-            }
             JSONObject ftpConnInfo = responseJson.getJSONObject("FTP_CONN_INFO");
             JSONObject jsonDataJson = new JSONObject();
             jsonDataJson.put("JSON_DATA", responseJson.getString("JSON_DATA"));
@@ -121,13 +116,25 @@ public class UserService {
             }
 
         } catch (IOException e) {
-            // 통신 오류 처리
             e.printStackTrace();
             throw new RuntimeException("Error occurred while communicating with server: " + e.getMessage());
         } finally {
             if (connection != null) {
                 connection.disconnect();
             }
+        }
+    }
+
+    /**
+     * 응답 JSON에서 필드 존재 여부를 검증
+     *
+     * @param responseJson 서버에서 반환된 JSON 객체
+     * @param fieldName    검증할 필드 이름
+     * @throws RuntimeException 필드가 누락된 경우 예외 발생
+     */
+    private void validateResponseField(JSONObject responseJson, String fieldName) {
+        if (!responseJson.has(fieldName)) {
+            throw new RuntimeException("Field '" + fieldName + "' is missing in the response JSON.");
         }
     }
 }
