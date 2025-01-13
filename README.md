@@ -12,9 +12,12 @@ OUTPUT : 아래는 오브젝트 컬럼명
 
 *XML_DATA를 핸들링 후 ORACLE DBMS에 “INSERT”
  - Header/Detail 구조를 join된 Single Table 구조로 변환
-*
-JSON_DATA를 핸들링 후 FTP서버에 업로드
+
+*JSON_DATA를 핸들링 후 FTP서버에 업로드
  - JSON 형식을 Flat(parameter-delimiter) 파일형태로 변환
+
+
+
 
 오브젝트 필드정보(서비스)
 
@@ -47,7 +50,11 @@ Response DATA
         "FILE_PATH": "/"
      }
 
+
+
+
 XML (DBMS)
+
 Source DATA
  
      <PurchaseOrder><HEADER><ORDER_NUM>1000</ORDER_NUM><ORDER_ID>kwang001</ORDER_ID><ORDER_DATE>2021-08-26</ORDER_DATE><ORDER_PRICE>62000</ORDER_PRICE><ORDER_QTY>3</ORDER_QTY><RECEIVER_NAME>김광수</RECEIVER_NAME><RECEIVER_NO>010-5312-2345</RECEIVER_NO><ETA_DATE>2021-09-01</ETA_DATE><DESTINATION>서울시 서초구 방배동 801</DESTINATION><DESCIPTION>현관앞에 놓아주세요</DESCIPTION></HEADER>
@@ -56,7 +63,11 @@ Target DATA
 
      “INSERT” - Header/Detail 구조를 join된 Single Table 구조로 변환
 
+
+
+
 JSON(FTP)
+
 Source DATA
 
        "record": [
