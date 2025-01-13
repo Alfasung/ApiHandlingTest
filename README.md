@@ -4,7 +4,7 @@
 **URL로 이름, 전화번호, 이메일 POST시
 
 
-     OUTPUT : 아래는 오브젝트 컬럼명
+OUTPUT : 아래는 오브젝트 컬럼명
  - XML_DATA : base64 encoded EUC-KR XML String
  - JSON_DATA : base64 encoded UTF-8 JSON String
  - DB_CONN_INFO : DBMS 연결정보
@@ -16,6 +16,35 @@
 JSON_DATA를 핸들링 후 FTP서버에 업로드
  - JSON 형식을 Flat(parameter-delimiter) 파일형태로 변환
 
+오브젝트 필드정보(서비스)
+Source DATA
+
+          NAME
+          PHONE_NUMBER
+          E_MAIL
+
+Response DATA
+
+     "XML_DATA":{**}
+     
+     "JSON_DATA":{**}
+     
+     
+     "DB_CONN_INFO": {
+        "HOST": "*",
+        "PORT": **,
+        "SID": "**",
+        "USER": "**",
+        "PASSWORD": "**",
+        "TABLENAME": "INSPIEN_XMLDATA_INFO"
+     },
+     "FTP_CONN_INFO": {
+        "HOST": "**",
+        "PORT": **,
+        "USER": "**",
+        "PASSWORD": "**",
+        "FILE_PATH": "/"
+     }
 
 
 
