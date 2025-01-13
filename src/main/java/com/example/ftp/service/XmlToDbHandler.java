@@ -2,6 +2,7 @@ package com.example.ftp.service;
 
 import org.json.JSONObject;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.w3c.dom.*;
 import org.xml.sax.InputSource;
 
@@ -31,13 +32,19 @@ public class XmlToDbHandler {
      * @param participantName 참여자 이름
      * @throws Exception 데이터 처리 중 오류 발생 시 예외 발생
      */
+    @Transactional(rollbackFor = Exception.class) // 트랜잭션 관리 추가
     public void handleXmlData(JSONObject xmlDataJson, String participantName) throws Exception {
-        // Base64 디코딩
-        String encodedXmlData = xmlDataJson.getString("XML_DATA");
-        String decodedXmlData = decodeBase64(encodedXmlData);
+        try {
+            // Base64 디코딩
+            String encodedXmlData = xmlDataJson.getString("XML_DATA");
+            String decodedXmlData = decodeBase64(encodedXmlData);
 
-        // XML 데이터 파싱 및 DB 삽입
-        parseAndInsertXml(decodedXmlData, participantName);
+            // XML 데이터 파싱 및 DB 삽입
+            parseAndInsertXml(decodedXmlData, participantName);
+        } catch (Exception e) {
+            // 예외가 발생하면 트랜잭션을 롤백
+            throw new RuntimeException("XML 데이터 처리 중 오류 발생: " + e.getMessage(), e);
+        }
     }
 
     /**
@@ -51,7 +58,7 @@ public class XmlToDbHandler {
             byte[] decodedBytes = Base64.getDecoder().decode(base64EncodedXml);
             return new String(decodedBytes, "EUC-KR");
         } catch (Exception e) {
-            throw new RuntimeException("Error decoding Base64 XML data: " + e.getMessage(), e);
+            throw new RuntimeException("Base64 XML 데이터를 디코딩하는 중 오류 발생: " + e.getMessage(), e);
         }
     }
 
@@ -63,17 +70,14 @@ public class XmlToDbHandler {
      * @throws Exception 파싱 또는 DB 작업 중 오류 발생 시 예외 발생
      */
     private void parseAndInsertXml(String xmlData, String participantName) throws Exception {
-        // XML 파싱 설정
         DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
         DocumentBuilder builder = factory.newDocumentBuilder();
 
-        // XML 데이터를 Document 객체로 변환
         InputSource inputSource = new InputSource(new StringReader(xmlData));
         inputSource.setEncoding("EUC-KR");
         Document document = builder.parse(inputSource);
         document.getDocumentElement().normalize();
 
-        // 데이터베이스에 삽입
         insertIntoDatabase(document, participantName);
     }
 
@@ -83,26 +87,22 @@ public class XmlToDbHandler {
      * @param document        XML Document 객체
      * @param participantName 참여자 이름
      * @throws Exception DB 삽입 중 오류 발생 시 예외 발생
+     * ORDER_DATE, ETA_DATE가 DATE 타입이 아닌 문자열로 저장되어 있음 (TO_DATE 함수 사용할 필요 없음)
      */
     private void insertIntoDatabase(Document document, String participantName) throws Exception {
-        // 동적 데이터 소스 가져오기
         DataSource dataSource = dataSourceManager.getDataSource();
 
         try (Connection connection = dataSource.getConnection()) {
-            // SQL INSERT 쿼리
             String insertQuery = "INSERT INTO INSPIEN_XMLDATA_INFO " +
                     "(ORDER_NUM, ITEM_SEQ, ORDER_ID, ORDER_DATE, ORDER_PRICE, ORDER_QTY, RECEIVER_NAME, RECEIVER_NO, ETA_DATE, DESTINATION, DESCIPTION, ITEM_NAME, ITEM_QTY, ITEM_COLOR, ITEM_PRICE, SENDER, CURRENT_DT) " +
-                    "VALUES (?, ?, ?, TO_DATE(?, 'YYYY-MM-DD'), ?, ?, ?, ?, TO_DATE(?, 'YYYY-MM-DD'), ?, ?, ?, ?, ?, ?, ?, SYSDATE)";
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, SYSDATE)";
             try (PreparedStatement statement = connection.prepareStatement(insertQuery)) {
-                // XML 데이터에서 HEADER와 DETAIL 태그 가져오기
                 NodeList headers = document.getElementsByTagName("HEADER");
                 NodeList details = document.getElementsByTagName("DETAIL");
 
-                // 각 HEADER와 DETAIL 조합으로 데이터 삽입
                 for (int i = 0; i < headers.getLength(); i++) {
                     Element header = (Element) headers.item(i);
 
-                    // HEADER 태그의 값 추출
                     String orderNum = getTextContent(header, "ORDER_NUM");
                     String orderId = getTextContent(header, "ORDER_ID");
                     String orderDate = getTextContent(header, "ORDER_DATE");
@@ -114,7 +114,6 @@ public class XmlToDbHandler {
                     String destination = getTextContent(header, "DESTINATION");
                     String description = getTextContent(header, "DESCIPTION");
 
-                    // DETAIL 태그의 값 추출 및 매칭
                     for (int j = 0; j < details.getLength(); j++) {
                         Element detail = (Element) details.item(j);
                         if (getTextContent(detail, "ORDER_NUM").equals(orderNum)) {
@@ -124,7 +123,6 @@ public class XmlToDbHandler {
                             String itemColor = getTextContent(detail, "ITEM_COLOR");
                             String itemPrice = getTextContent(detail, "ITEM_PRICE");
 
-                            // SQL 파라미터 설정
                             statement.setString(1, orderNum);
                             statement.setString(2, itemSeq);
                             statement.setString(3, orderId);
@@ -140,27 +138,22 @@ public class XmlToDbHandler {
                             statement.setInt(13, Integer.parseInt(itemQty));
                             statement.setString(14, itemColor);
                             statement.setDouble(15, Double.parseDouble(itemPrice));
-                            statement.setString(16, participantName); // 참여자 이름
+                            statement.setString(16, participantName);
 
-                            statement.addBatch(); // Batch 처리
+                            statement.addBatch();
                         }
                     }
                 }
 
-                // Batch 실행
                 int[] results = statement.executeBatch();
-                System.out.println("Inserted rows: " + results.length);
+                System.out.println("삽입된 행 수: " + results.length);
             }
+        } catch (Exception e) {
+            // 데이터베이스 작업 중 오류 발생 시 예외 처리
+            throw new RuntimeException("데이터베이스 삽입 중 오류 발생: " + e.getMessage(), e);
         }
     }
 
-    /**
-     * XML 태그에서 텍스트 콘텐츠를 추출
-     *
-     * @param element XML Element 객체
-     * @param tagName 태그 이름
-     * @return 태그의 텍스트 콘텐츠 (없을 경우 null 반환)
-     */
     private String getTextContent(Element element, String tagName) {
         NodeList nodes = element.getElementsByTagName(tagName);
         return nodes.getLength() > 0 ? nodes.item(0).getTextContent() : null;
