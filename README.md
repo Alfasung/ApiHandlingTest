@@ -46,5 +46,37 @@ Response DATA
         "FILE_PATH": "/"
      }
 
+XML (DBMS)
+Source DATA
+ 
+     <PurchaseOrder><HEADER><ORDER_NUM>1000</ORDER_NUM><ORDER_ID>kwang001</ORDER_ID><ORDER_DATE>2021-08-26</ORDER_DATE><ORDER_PRICE>62000</ORDER_PRICE><ORDER_QTY>3</ORDER_QTY><RECEIVER_NAME>김광수</RECEIVER_NAME><RECEIVER_NO>010-5312-2345</RECEIVER_NO><ETA_DATE>2021-09-01</ETA_DATE><DESTINATION>서울시 서초구 방배동 801</DESTINATION><DESCIPTION>현관앞에 놓아주세요</DESCIPTION></HEADER>
 
+Target DATA
+
+     “INSERT” - Header/Detail 구조를 join된 Single Table 구조로 변환
+
+JSON(FTP)
+Source DATA
+
+       "record": [
+       		{
+       			"Names": "Baxter Chang Özbey",
+       			"Phone": "076 2957 1961",
+       			"Email": "id.enim.Curabitur@Crasdictum.com",
+       			"BirthDate": "1981/09/14",
+       			"Company": "Sem Institute",
+       			"PersonalNumber": "16550126 7313",
+       			"OrganisationNumber": "978436-9705",
+       			"Country": "Kenya",
+       			"Region": "South Sumatra",
+       			"City": "Palembang",
+       			"Street": "9980 Lacus. Avenue",
+       			"ZipCode": 86867,
+       			"CreditCard": 4539184335316,
+       			"GUID": "5DD3E3BF-A039-B909-326B-460396CD5CF6"
+       		},
+
+Target DATA
+                                                        
+       Baxter Chang Özbey^076 2957 1961^id.enim.Curabitur@Crasdictum.com^1981/09/14^Sem Institute^16550126 7313^978436-9705^Kenya^South Sumatra^Palembang^9980 Lacus. Avenue^86867^4539184335316^5DD3E3BF-A039-B909-326B-460396CD5CF6
 
