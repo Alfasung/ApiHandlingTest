@@ -5,110 +5,105 @@ import org.json.JSONObject;
 import org.springframework.stereotype.Service;
 
 import java.io.*;
+import java.net.HttpURLConnection;
 import java.net.URL;
 import java.net.URLConnection;
 import java.text.SimpleDateFormat;
 import java.util.Base64;
 import java.util.Date;
 
-// JSON 데이터를 처리하고 FTP 서버에 업로드하는 서비스 클래스
+/**
+ * JSON 데이터를 처리하고 FTP 서버에 업로드하는 서비스 클래스.
+ */
 @Service
 public class JsonToFtpHandler {
 
     /**
-     * JSON 데이터를 처리하여 FTP에 업로드하고 파일을 로컬에 저장하는 메서드
+     * JSON 데이터를 처리하여 FTP 서버에 업로드하는 메서드.
      *
-     * @param jsonDataJson    JSON 데이터가 포함된 객체
-     * @param ftpConnInfo     FTP 연결 정보가 포함된 객체
-     * @param participantName 참여자 이름
-     * @throws Exception JSON 처리, 파일 저장 또는 FTP 업로드 중 오류 발생
+     * @param jsonDataJson    JSON 데이터가 포함된 객체 (Base64로 인코딩된 JSON 포함).
+     * @param ftpConnInfo     FTP 연결 정보가 포함된 객체.
+     * @param participantName 참여자 이름 (파일 이름에 사용).
+     * @throws Exception 처리 및 업로드 중 오류가 발생한 경우 예외를 던짐.
      */
     public void handleJsonData(JSONObject jsonDataJson, JSONObject ftpConnInfo, String participantName) throws Exception {
         // JSON_DATA 키가 존재하는지 확인
         if (!jsonDataJson.has("JSON_DATA")) {
-            throw new RuntimeException("JSON_DATA not found in the JSON object.");
+            throw new RuntimeException("JSON_DATA가 JSON 객체에 없습니다.");
         }
 
-        // Base64로 인코딩된 JSON 데이터 디코딩
+        // Base64로 인코딩된 JSON 데이터를 디코딩
         String encodedJsonData = jsonDataJson.getString("JSON_DATA");
         String jsonData = decodeBase64(encodedJsonData);
 
-        // JSON 데이터에서 배열 추출
+        // JSON 데이터에서 배열 형식 추출
         JSONArray jsonArray = extractJsonArray(jsonData);
 
-        // JSON 데이터를 Flat 파일 형태로 변환
+        // JSON 데이터를 Flat 파일 형식으로 변환
         String flatData = convertJsonToFlat(jsonArray);
 
-        // 변환된 데이터를 출력
-        System.out.println("Generated Flat Data:\n" + flatData);
+        // 변환된 데이터를 출력 (디버깅 용도)
+        System.out.println("생성된 Flat 데이터:\n" + flatData);
 
-        // 파일명 생성 (INSPIEN_JSON_참여자_타임스탬프 형식)
+        // 파일 이름 생성 (참여자 이름 및 타임스탬프 포함)
         String timestamp = new SimpleDateFormat("yyyyMMddHHmmss").format(new Date());
         String fileName = String.format("INSPIEN_JSON_[%s]_[%s].txt", participantName, timestamp);
-
-        // 프로젝트 루트 폴더에 파일 저장
-//        saveFileToLocal(fileName, flatData);
 
         // FTP 업로드 URL 생성
         String ftpUrl = createFtpUrl(ftpConnInfo, fileName);
 
-        // FTP로 업로드
-        uploadToFTP(ftpUrl, flatData);
+        // FTP로 업로드 시도
+        try {
+            uploadToFTP(ftpUrl, flatData);
+        } catch (IOException e) {
+            // 업로드 중 오류가 발생한 경우 예외 처리
+            throw new RuntimeException("FTP 업로드 중 오류 발생: " + e.getMessage(), e);
+        }
     }
 
     /**
-     * Base64로 인코딩된 문자열을 디코딩
+     * Base64로 인코딩된 문자열을 디코딩.
      *
-     * @param encodedJsonData Base64로 인코딩된 데이터
-     * @return 디코딩된 문자열
+     * @param encodedJsonData Base64로 인코딩된 JSON 데이터.
+     * @return 디코딩된 JSON 문자열.
      */
     private String decodeBase64(String encodedJsonData) {
         try {
             byte[] decodedBytes = Base64.getDecoder().decode(encodedJsonData);
             return new String(decodedBytes, "UTF-8");
-        } catch (Exception e) {
-            throw new RuntimeException("Error decoding Base64 JSON data: " + e.getMessage(), e);
+        } catch (IllegalArgumentException e) {
+            throw new RuntimeException("Base64 디코딩이 잘못되었습니다: " + e.getMessage(), e);
+        } catch (UnsupportedEncodingException e) {
+            throw new RuntimeException("Base64 데이터에 대한 지원되지 않는 인코딩: " + e.getMessage(), e);
         }
     }
 
     /**
-     * JSON 문자열에서 배열 데이터를 추출
+     * JSON 문자열에서 배열을 추출.
      *
-     * @param jsonData JSON 형식의 데이터
-     * @return JSONArray 객체
+     * @param jsonData JSON 형식의 문자열 데이터.
+     * @return 추출된 JSONArray 객체.
      */
     private JSONArray extractJsonArray(String jsonData) {
         if (jsonData.trim().startsWith("[")) {
-            return new JSONArray(jsonData); // JSON 배열
+            return new JSONArray(jsonData); // JSON 배열 형식
         } else if (jsonData.trim().startsWith("{")) {
             JSONObject jsonObject = new JSONObject(jsonData);
             if (jsonObject.has("record")) {
-                return jsonObject.getJSONArray("record"); // 객체에서 배열 추출
+                return jsonObject.getJSONArray("record"); // record 키에서 배열 추출
             } else {
-                throw new RuntimeException("JSON does not contain a valid array: " + jsonData);
+                throw new RuntimeException("JSON에 유효한 배열이 포함되어 있지 않습니다: " + jsonData);
             }
         } else {
-            throw new RuntimeException("Invalid JSON format: " + jsonData);
+            throw new RuntimeException("JSON 형식이 잘못되었습니다: " + jsonData);
         }
     }
 
     /**
-     * JSON 배열을 Flat 파일 형식으로 변환
+     * JSON 배열을 Flat 파일 형식으로 변환.
      *
-     * @param jsonArray JSON 배열
-     * @return 변환된 Flat 데이터
-     */
-    /**
-     * JSON 배열을 Flat 파일 형식으로 변환 (동적 필드 처리)
-     *
-     * @param jsonArray JSON 배열
-     * @return 변환된 Flat 데이터
-     */
-    /**
-     * JSON 배열을 Flat 파일 형식으로 변환 (필드 순서 지정)
-     *
-     * @param jsonArray JSON 배열
-     * @return 변환된 Flat 데이터
+     * @param jsonArray JSON 배열.
+     * @return 변환된 Flat 데이터 문자열.
      */
     private String convertJsonToFlat(JSONArray jsonArray) {
         StringBuilder flatData = new StringBuilder();
@@ -120,22 +115,12 @@ public class JsonToFtpHandler {
                 "Region", "City", "Street", "ZipCode", "CreditCard", "GUID"
         };
 
-        // 헤더 생성
-//        for (int i = 0; i < fieldOrder.length; i++) {
-//            flatData.append(fieldOrder[i]);
-//            if (i < fieldOrder.length - 1) {
-//                flatData.append("^");
-//            }
-//        }
-//        flatData.append("\n");
-
-        // 데이터 생성
+        // 각 JSON 객체를 Flat 파일 형식으로 변환
         for (int i = 0; i < jsonArray.length(); i++) {
             JSONObject obj = jsonArray.getJSONObject(i);
-
             for (int j = 0; j < fieldOrder.length; j++) {
                 String key = fieldOrder[j];
-                flatData.append(obj.optString(key, "N/A")); // 키가 없으면 기본값 "N/A"
+                flatData.append(obj.optString(key, "N/A")); // 키가 없으면 "N/A"로 대체
                 if (j < fieldOrder.length - 1) {
                     flatData.append("^");
                 }
@@ -146,28 +131,12 @@ public class JsonToFtpHandler {
         return flatData.toString();
     }
 
-
     /**
-     * 프로젝트 루트 폴더에 파일 저장
+     * FTP 업로드 URL을 생성.
      *
-     * @param fileName 저장할 파일 이름
-     * @param flatData 저장할 데이터
-     * @throws IOException 파일 저장 중 오류 발생 시 예외 발생
-     */
-//    private void saveFileToLocal(String fileName, String flatData) throws IOException {
-//        File file = new File(System.getProperty("user.dir") + File.separator + fileName);
-//        try (BufferedWriter writer = new BufferedWriter(new FileWriter(file))) {
-//            writer.write(flatData);
-//            System.out.println("File saved to local: " + file.getAbsolutePath());
-//        }
-//    }
-
-    /**
-     * FTP 업로드 URL을 생성
-     *
-     * @param ftpConnInfo FTP 연결 정보
-     * @param fileName    업로드할 파일 이름
-     * @return 생성된 FTP URL
+     * @param ftpConnInfo FTP 연결 정보.
+     * @param fileName    업로드할 파일 이름.
+     * @return 생성된 FTP URL 문자열.
      */
     private String createFtpUrl(JSONObject ftpConnInfo, String fileName) {
         try {
@@ -179,30 +148,43 @@ public class JsonToFtpHandler {
                     ftpConnInfo.getString("FILE_PATH"),
                     fileName);
         } catch (Exception e) {
-            throw new RuntimeException("Error creating FTP URL: " + e.getMessage(), e);
+            throw new RuntimeException("FTP URL 생성 중 오류 발생: " + e.getMessage(), e);
         }
     }
 
     /**
-     * 변환된 데이터를 FTP 서버에 업로드
+     * 변환된 데이터를 FTP 서버에 업로드.
      *
-     * @param ftpUrl  FTP 업로드 URL
-     * @param flatData 업로드할 Flat 데이터
-     * @throws Exception 업로드 중 오류 발생
+     * @param ftpUrl  FTP 업로드 URL.
+     * @param flatData 업로드할 Flat 데이터.
+     * @throws IOException FTP 업로드 중 오류가 발생한 경우 예외 발생.
      */
-    private void uploadToFTP(String ftpUrl, String flatData) throws Exception {
-        System.out.println("Uploading Flat Data to FTP:\n" + flatData);
+    private void uploadToFTP(String ftpUrl, String flatData) throws IOException {
+        System.out.println("FTP로 업로드 중:\n" + flatData);
 
         // FTP 연결 설정
         URL url = new URL(ftpUrl);
-        URLConnection connection = url.openConnection();
-        connection.setDoOutput(true);
+        URLConnection connection = null;
 
-        try (OutputStream os = connection.getOutputStream()) {
-            os.write(flatData.getBytes("UTF-8")); // 데이터를 업로드
-            os.flush();
+        try {
+            connection = url.openConnection();
+            connection.setDoOutput(true);
+
+            try (OutputStream os = connection.getOutputStream()) {
+                os.write(flatData.getBytes("UTF-8")); // 데이터를 업로드
+                os.flush();
+            }
+            System.out.println("FTP 업로드 성공: " + ftpUrl);
+        } catch (FileNotFoundException e) {
+            throw new IOException("FTP 서버에서 파일을 찾을 수 없음: " + e.getMessage(), e);
+        } catch (IOException e) {
+            throw new IOException("FTP 업로드 중 오류 발생: " + e.getMessage(), e);
+        } catch (Exception e) {
+            throw new IOException("FTP 업로드 중 예상치 못한 오류 발생: " + e.getMessage(), e);
+        } finally {
+            if (connection instanceof HttpURLConnection) {
+                ((HttpURLConnection) connection).disconnect();
+            }
         }
-
-        System.out.println("File uploaded successfully to: " + ftpUrl);
     }
 }
